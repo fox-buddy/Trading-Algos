@@ -1,0 +1,76 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Liquid1209
+
+//@version=4
+strategy("myStrategyCoding", overlay=true)
+
+//********************
+//Ordersize
+//********************
+percentOfEquityPerTrade = 100.0
+percentOfEquityPerTradeAsPerc = percentOfEquityPerTrade/100.0
+maximumPerTrade = strategy.equity * percentOfEquityPerTradeAsPerc
+ordersize = floor(maximumPerTrade/close)
+
+//********************
+//Date Range Input
+//********************
+fromDay = input(title="Start Date", defval=1, minval=1, maxval=31, step=1)
+fromMonth = input(title="Start Month", defval=1, minval=1, maxval=12, step=1)
+fromYear = input(title="Start Year", defval=2020, minval=1800, maxval=2100, step=1)
+toDay = input(title="End Date", defval=31, minval=1, maxval=31, step=1)
+toMonth = input(title="End Month", defval=12, minval=1, maxval=12, step=1)
+toYear = input(title="End Year", defval=2021, minval=1800, maxval=2100, step=1)
+
+start = timestamp(fromYear, fromMonth, fromDay, 00, 00)
+finish = timestamp(toYear, toMonth, toDay, 23, 59)
+
+timeWindow = time >= start and time <= finish
+
+
+longCondition = sma(close,5) > sma(close,10) and sma(close,10) > ema(close,34)
+//plot Confirmation bar (close of bar is relevant). Order will be placed after crossover of close
+//plotshape(longCondition, color=color.green, style=shape.circle, location=location.abovebar)
+// strategy.entry("My Long Entry Id", strategy.long, qty=ordersize, limit=close[1]+atr(7), stop=close[1], when=longCondition and timeWindow)
+strategy.entry("My Long Entry Id", strategy.long, qty=ordersize, when=longCondition and timeWindow and not longCondition[1])
+
+//shortCondition = crossunder(sma(close, 5), sma(close, 10)) and close < ema(close,34)
+shortCondition = sma(close,5) < sma(close,10) and sma(close,10) < ema(close,34)
+//plot Confirmation bar (close of bar is relevant). Order will be placed after crossover of close
+//plotshape(shortCondition, color=color.red, style=shape.circle, location=location.abovebar)
+// strategy.entry("My Short Entry Id", strategy.short, qty=ordersize, limit=close[1]-atr(7), stop=close[1], when=shortCondition and timeWindow)
+strategy.entry("My Short Entry Id", strategy.short, qty=ordersize, when=shortCondition and timeWindow and not shortCondition[1])
+
+//********************
+// Exiting Strategy
+//********************
+// longTrailPrice = strategy.position_avg_price + atr(14)
+longTrailPrice = ema(close,50)
+shortTrailPrice = ema(close,50)
+//longTrailOffset = ema(close,34)/syminfo.mintick
+//shortTrailOffset = ema(close,34)/syminfo.mintick
+
+plot(ema(close,34), color=color.black)
+// strategy.exit("longStop","My Long Entry Id", stop=strategy.position_avg_price - atr(7), when=strategy.position_size > 0)    
+// strategy.exit("shortStop","My Short Entry Id", stop=strategy.position_avg_price + atr(7), when=strategy.position_size < 0)
+//strategy.exit("longTrailStop","My Long Entry Id", stop=strategy.position_avg_price - atr(14), trail_price=longTrailPrice, trail_offset=trailOffset, when=strategy.position_size > 0)    
+//strategy.exit("shortTrailStop","My Short Entry Id", stop=strategy.position_avg_price + atr(14),  trail_price=shortTrailPrice, trail_offset=shortTrailOffset, when=strategy.position_size < 0)
+
+//Ema Stop
+strategy.exit("longTrailStop","My Long Entry Id", stop=longTrailPrice, when=strategy.position_size > 0) 
+strategy.exit("shortTrailStop","My Short Entry Id", stop=shortTrailPrice, when=strategy.position_size < 0)
+
+//********************
+// Plotting
+//********************
+plot(sma(close, 5), color=color.blue)
+plot(sma(close, 10), color=color.red)
+
+//if longCondition
+    //Plotting limit and stop price
+    //line.new(bar_index, close[1], bar_index-1, close[1], xloc=xloc.bar_index, color=color.green)
+    //line.new(bar_index, close[1]-1, bar_index-1, close[1]-1, xloc=xloc.bar_index, color=color.blue)
+//if shortCondition
+    //Plotting limit and stop price
+    //line.new(bar_index, close[1], bar_index-1, close[1], xloc=xloc.bar_index, color=color.red)
+    //line.new(bar_index, close[1]+1, bar_index-1, close[1]+1, xloc=xloc.bar_index, color=color.blue)

@@ -1,0 +1,29 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Liquid1209
+
+//@version=4
+study("Butterfly Pattern", overlay=true)
+
+//********************
+//**** Functions *****
+//********************
+
+zigzag() =>
+    _isUp = close >= open
+    _isDown = close <= open
+    
+    _direction = 0
+    _direction := _isUp[1] and _isDown ? -1 : _isDown[1] and _isUp ? 1 : nz(_direction[1])
+    
+    _highOfLastTwo = highest(2)
+    _lowOfLastTwo = lowest(2)
+    
+    _zigzag = _isUp[1] and _isDown and _direction[1] != -1 ? _highOfLastTwo : _isDown[1] and _isUp and _direction[1] != 1 ? _lowOfLastTwo : na
+    _zigzag
+
+
+//********************
+//***** Plotting *****
+//********************
+ziggi = zigzag()
+plot(ziggi, title='ziggi', color=color.green, linewidth=2)

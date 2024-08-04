@@ -1,0 +1,165 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Liquid1209
+
+//@version=4
+study("EmaRainbowCandleMark", overlay = true)
+
+// *******************************
+// ******** User Inputs **********
+// *******************************
+hammerCandleTolerance = input(title="Hammer Body-Wick Faktor", type=input.float, defval=0.8, minval=0.5, step=0.1)
+starCandleTolerance = input(title="Shooting Star Body-Wick Faktor", type=input.float, defval=0.8, minval=0.5, step=0.1)
+candleVolumeFilter = input(title="Candle Volumenverhältnis zur vorherigen Candle", type=input.float, defval=0.8, minval=1.0, step=0.1)
+
+emaShortest = input(title="Fastest EMA", type=input.integer, defval=10, minval=1, step=1)
+middleFib1 = input(title="EMA 2", type=input.integer, defval=13, minval=1, step=1)
+middleFib2 = input(title="EMA 3", type=input.integer, defval=21, minval=1, step=1)
+middleFib3 = input(title="EMA 4", type=input.integer, defval=34, minval=1, step=1)
+emaMedian = input(title="Median EMA", type=input.integer, defval=55, minval=1, step=1)
+emaSlowest = input(title="Slowest EMA", type=input.integer, defval=89, minval=1, step=1)
+
+rsiLongBarrier = input(title="RSI (14) Long Barriere (Maximal erlaubt)", type=input.integer, defval=69, minval=1, step=1)
+rsiShortBarrier = input(title="RSI (14) Short Barriere (Minimal erforderlich)", type=input.integer, defval=31, minval=1, step=1)
+
+// *******************************
+// ******** Functions *********
+// *******************************
+isHammerCandle() =>
+    candleWickLength = iff(close<open, high-open, high-close)
+    candleFuseLength = iff(close<open, close-low, open-low)
+    candleBodylength = iff(close<open, open-close, close-open)
+    //hammer body size will me multiplied with this value. Reult is the maximum allowd wick lenght
+    hammerCandleWickToBodyMaximum = hammerCandleTolerance  
+    
+    isHammer = (candleWickLength < candleBodylength*hammerCandleWickToBodyMaximum) and (candleFuseLength >= 1.9*candleBodylength)
+    isHammer
+    
+isShootingStarCandle() =>
+    candleWickLength = iff(close<open, high-open, high-close)
+    candleFuseLength = iff(close<open, close-low, open-low)
+    candleBodylength = iff(close<open, open-close, close-open)
+    //Shooting Star body size will me multiplied with this value. Reult is the maximum allowd wick lenght
+    shootingStarCandleWickToBodyMaximum = starCandleTolerance  
+    
+    isShootingStar = (candleFuseLength < candleBodylength*shootingStarCandleWickToBodyMaximum) and (candleWickLength >= 1.9*candleBodylength)
+    isShootingStar
+    
+isBullishEngulfingCandle() =>
+    lastCandleWasRed = close[1] < open[1]
+    lastCandleWasGreen = not lastCandleWasRed
+    iAmGreen = close > open
+    iAmRed = not iAmGreen
+    
+    isBullishEngulfing = lastCandleWasRed and iAmGreen and (open<=close[1]) and (close>=open[1])
+    isBullishEngulfing
+
+isBearishEngulfingCandle() =>
+    lastCandleWasRed = close[1] < open[1]
+    lastCandleWasGreen = not lastCandleWasRed
+    iAmGreen = close > open
+    iAmRed = not iAmGreen
+    
+    isBearishEngulfing = lastCandleWasGreen and iAmRed and (open>=close[1]) and (close<=open[1])
+    isBearishEngulfing
+
+// *******************************
+// ******** Calculations *********
+// *******************************
+//EMA
+emaShortestValue = ema(close, emaShortest)
+ema13Value = ema(close, middleFib1)
+ema21Value = ema(close, middleFib2)
+ema34Value = ema(close, middleFib3)
+emaMedianValue = ema(close, emaMedian)
+ema89Value = ema(close, emaSlowest)
+
+// *******************************
+// ******* EMA Crossunders *******
+// *******************************
+isLongEmaCrossed = false
+isLongTradeFlag = false
+isShortEmaCrossed = false
+isShortTradeFlag = false
+emaCrossValue = 0.0
+
+if(crossunder(low, emaShortestValue))
+    isLongEmaCrossed := true
+    emaCrossValue := emaShortestValue
+if(crossunder(low, ema13Value))
+    isLongEmaCrossed := true
+    emaCrossValue := ema13Value
+if(crossunder(low, ema21Value))
+    isLongEmaCrossed := true
+    emaCrossValue := ema21Value
+if(crossunder(low, ema34Value))
+    isLongEmaCrossed := true
+    emaCrossValue := ema34Value
+if(crossunder(low, emaMedianValue))
+    isLongEmaCrossed := true
+    emaCrossValue := emaMedianValue
+if(crossunder(close, emaMedianValue))
+    isLongTradeFlag := true
+    emaCrossValue := emaMedianValue    
+    
+if(crossover(high, emaShortestValue))
+    isShortEmaCrossed := true
+    emaCrossValue := emaShortestValue
+if(crossover(high, ema13Value))
+    isShortEmaCrossed := true
+    emaCrossValue := ema13Value
+if(crossover(high, ema21Value))
+    isShortEmaCrossed := true
+    emaCrossValue := ema21Value
+if(crossover(high, ema34Value))
+    isShortEmaCrossed := true
+    emaCrossValue := ema34Value
+if(crossover(high, emaMedianValue))
+    isShortEmaCrossed := true
+    emaCrossValue := emaMedianValue
+if(crossover(close, emaMedianValue))
+    isShortTradeFlag := true
+    emaCrossValue := emaMedianValue  
+// *******************************
+// ****** Trade Filtering ********
+// *******************************
+//Trendphase identification
+isUptrendPhase = emaShortestValue >= ema13Value and ema13Value >= ema21Value and ema21Value >= ema34Value and ema34Value >= emaMedianValue and emaMedianValue >= ema89Value
+isDownTrendPhase = emaShortestValue <= ema13Value and ema13Value <= ema21Value and ema21Value <= ema34Value and ema34Value <= emaMedianValue and emaMedianValue <= ema89Value
+istrendLess = not isUptrendPhase and not isDownTrendPhase
+
+//RSI Filtering
+longTradeRsiOkay = rsi(close,14) <= rsiLongBarrier
+shortTradeRsiOkay = rsi(close,14) >= rsiShortBarrier
+
+//Volume Filtering
+volumeFactor = candleVolumeFilter
+isVolumeHigher = volume > volume[1]*volumeFactor
+
+
+// *******************************
+// ********** Plotting ***********
+// *******************************
+//Plotting EMA Lines
+plot(emaShortestValue, color=color.orange)
+plot(ema13Value, color=color.green)
+plot(ema21Value, color=color.navy)
+plot(ema34Value, color=color.aqua)
+plot(emaMedianValue, color=color.purple)
+plot(ema89Value, color=color.red)
+
+//Plotting EMA Cross
+plotshape(isLongEmaCrossed and isUptrendPhase and not isLongTradeFlag ? emaCrossValue : na, color=color.green, style=shape.xcross, location=location.absolute, size=size.small)
+plotshape(isLongTradeFlag and isUptrendPhase ? emaCrossValue : na, color=color.red, style=shape.flag, location=location.belowbar, size=size.small)
+plotshape(isShortEmaCrossed and isDownTrendPhase and not isShortTradeFlag ? emaCrossValue : na, color=color.red, style=shape.xcross, location=location.absolute, size=size.small)
+plotshape(isShortTradeFlag and isDownTrendPhase ? emaCrossValue : na, color=color.green, style=shape.flag, location=location.abovebar, size=size.small)
+
+//Plotting Trend Directions
+plotshape(isUptrendPhase and not isUptrendPhase[1], color=color.green, style=shape.triangleup, location=location.abovebar, size=size.small)
+plotshape(isDownTrendPhase and not isDownTrendPhase[1], color=color.red, style=shape.triangledown, location=location.abovebar, size=size.small)
+plotshape(istrendLess and not istrendLess[1], color=color.black, style=shape.circle, location=location.abovebar, size=size.small)
+
+//Plotting special candles
+plotchar(isHammerCandle() and isUptrendPhase and isVolumeHigher and longTradeRsiOkay, char='H', color=color.green, size=size.small)
+plotchar(isBullishEngulfingCandle() and isUptrendPhase and isVolumeHigher and longTradeRsiOkay, char='E', color=color.green, size=size.small)
+plotchar(isShootingStarCandle() and isDownTrendPhase and isVolumeHigher and shortTradeRsiOkay, char='S', color=color.red, size=size.small)
+plotchar(isBearishEngulfingCandle() and isDownTrendPhase and isVolumeHigher and shortTradeRsiOkay, char='E', color=color.red, size=size.small)

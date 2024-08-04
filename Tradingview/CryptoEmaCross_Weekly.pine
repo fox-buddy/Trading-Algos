@@ -1,0 +1,149 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// This strategy has been created for illustration purposes only and should not be relied upon as a basis for buying, selling, or holding any asset or security.
+// © liquid
+
+//@version=4
+strategy(
+     "EMA Cross Crypto Strategy", overlay=true)
+
+
+
+//********************
+//****** Inputs ******
+//********************
+emaFastPeriod = input(title="Fast EMA", type=input.integer, defval=5, minval=1, maxval=9999)
+emaSlowPeriod = input(title="Slow EMA", type=input.integer, defval=10, minval=1, maxval=9999)
+//emaStopPeriod = input(title="Stop EMA", type=input.integer, defval=34, minval=1, maxval=9999)
+smaStopper = input(title="SMA Stopper", type=input.integer, defval=8, minval=1, maxval=9999)
+tradeDirection = input(title="Trade Direction", options=["Long", "Short", "Both"], defval="Long")
+
+dateFrom = input(title="Start Date", type=input.time, defval=timestamp("01 Jan 2020 00:00"))
+dateTo = input(title="End Date", type=input.time, defval=timestamp("31 Dec 2170 23:59"))
+
+hammerCandleTolerance = input(title="Hammer Body-Wick Faktor", type=input.float, defval=0.8, minval=0.5, step=0.1)
+starCandleTolerance = input(title="Shooting Star Body-Wick Faktor", type=input.float, defval=0.8, minval=0.5, step=0.1)
+candleVolumeFilter = input(title="Candle Volumenverhältnis zur vorherigen Candle", type=input.float, defval=0.8, minval=1.0, step=0.1)
+
+// *******************************
+// ******** Functions *********
+// *******************************
+isHammerCandle() =>
+    candleWickLength = iff(close<open, high-open, high-close)
+    candleFuseLength = iff(close<open, close-low, open-low)
+    candleBodylength = iff(close<open, open-close, close-open)
+    //hammer body size will me multiplied with this value. Reult is the maximum allowd wick lenght
+    hammerCandleWickToBodyMaximum = hammerCandleTolerance  
+    
+    isHammer = (candleWickLength < candleBodylength*hammerCandleWickToBodyMaximum) and (candleFuseLength >= 1.9*candleBodylength)
+    isHammer
+    
+isShootingStarCandle() =>
+    candleWickLength = iff(close<open, high-open, high-close)
+    candleFuseLength = iff(close<open, close-low, open-low)
+    candleBodylength = iff(close<open, open-close, close-open)
+    //Shooting Star body size will me multiplied with this value. Reult is the maximum allowd wick lenght
+    shootingStarCandleWickToBodyMaximum = starCandleTolerance  
+    
+    isShootingStar = (candleFuseLength < candleBodylength*shootingStarCandleWickToBodyMaximum) and (candleWickLength >= 1.9*candleBodylength)
+    isShootingStar
+    
+isBullishEngulfingCandle() =>
+    lastCandleWasRed = close[1] < open[1]
+    lastCandleWasGreen = not lastCandleWasRed
+    iAmGreen = close > open
+    iAmRed = not iAmGreen
+    
+    isBullishEngulfing = lastCandleWasRed and iAmGreen and (open<=close[1]) and (close>=open[1])
+    isBullishEngulfing
+
+isBearishEngulfingCandle() =>
+    lastCandleWasRed = close[1] < open[1]
+    lastCandleWasGreen = not lastCandleWasRed
+    iAmGreen = close > open
+    iAmRed = not iAmGreen
+    
+    isBearishEngulfing = lastCandleWasGreen and iAmRed and (open>=close[1]) and (close<=open[1])
+    isBearishEngulfing
+    
+isWickLonger() => 
+    candleWickLength = iff(close<open, high-open, high-close)
+    candleFuseLength = iff(close<open, close-low, open-low)
+    
+    relationIndicator = candleWickLength >= candleFuseLength
+    relationIndicator
+    
+isFuseLonger() => 
+    candleWickLength = iff(close<open, high-open, high-close)
+    candleFuseLength = iff(close<open, close-low, open-low)
+    
+    relationIndicator = candleFuseLength > candleWickLength
+    relationIndicator
+
+//********************
+//******* Calc *******
+//********************
+fastEMA = ema(close, emaFastPeriod)
+slowEMA = ema(close, emaSlowPeriod)
+stopperSMA = sma(close, smaStopper)
+
+rsiValue = rsi(close, 14)
+
+// volumeSum = 0.0
+// for counter = 0 to 45
+//     volumeSum := volumeSum + volume[counter]
+// volumeAverage = volumeSum / 46 
+// volumeFactor = 2.5
+
+isUptrendPhase = fastEMA > slowEMA
+isDownTrendPhase = fastEMA < slowEMA
+
+//********************
+//***** Plotting *****
+//********************
+plot(series=fastEMA, color=color.orange, linewidth=2)
+plot(series=slowEMA, color=color.purple, linewidth=2)
+plot(series=stopperSMA, color=color.black, linewidth=2)
+
+//Plotting special candles
+plotchar(isHammerCandle() and isDownTrendPhase, char='H', color=color.green, size=size.small)
+plotchar(isBullishEngulfingCandle() and isDownTrendPhase, char='E', color=color.green, size=size.small)
+//plotchar(isWickLonger() and isDownTrendPhase, char='W', color=color.red, size=size.small)
+plotchar(isShootingStarCandle() and isUptrendPhase, char='S', color=color.red, size=size.small)
+plotchar(isBearishEngulfingCandle() and isUptrendPhase, char='E', color=color.red, size=size.small)
+//plotchar(isWickLonger() and isUptrendPhase, char='F', color=color.red, size=size.small)
+
+
+plotshape(rsiValue > 75 and isUptrendPhase, color=color.red, style=shape.circle, location=location.belowbar, size=size.small)
+plotshape(rsiValue < 30 and isUptrendPhase, color=color.green, style=shape.circle, location=location.belowbar, size=size.small)
+//********************
+//****** Trading *****
+//********************
+// Check if the close time of the current bar falls inside the date range
+inDateRange = (time >= dateFrom) and (time < dateTo)
+
+// Translate input into trading conditions
+longOK  = (tradeDirection == "Long") or (tradeDirection == "Both")
+shortOK = (tradeDirection == "Short") or (tradeDirection == "Both")
+
+// Decide
+longCondition = crossover(fastEMA, slowEMA) or crossover(fastEMA, stopperSMA) 
+shortCondition = crossunder(fastEMA, slowEMA) or crossunder(fastEMA, stopperSMA)
+longStopCondition= crossunder(fastEMA, stopperSMA)
+shortStopCondition= crossover(fastEMA, stopperSMA)
+
+
+
+// ORDERS:
+
+// Submit entry (or reverse) orders
+if (longCondition and inDateRange)
+    strategy.entry(id="long", long=true, when = longOK)
+if (shortCondition and inDateRange)
+    strategy.entry(id="short", long=false, when = shortOK)
+    
+// Submit exit orders in the cases where we trade only long or only short
+if (strategy.position_size > 0 and longStopCondition)
+    strategy.exit(id="exit long", stop=close)
+if (strategy.position_size < 0 and shortStopCondition)
+    strategy.exit(id="exit short", stop=close)
+
